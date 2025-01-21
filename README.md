@@ -1,1 +1,1 @@
-# visual_python
+# VisualLang + IDE
