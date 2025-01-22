@@ -1,20 +1,31 @@
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QPushButton, QLabel, QHBoxLayout, QGraphicsView,
-                               QGraphicsScene, QGraphicsItem, QFileDialog, QTextEdit, QListWidget, QListWidgetItem, QLineEdit, QInputDialog)
-from PySide6.QtCore import Qt, QRectF, QPointF
-from PySide6.QtGui import QPainterPath, QColor, QPen
+                               QGraphicsScene, QGraphicsItem, QTextEdit, QListWidget, QListWidgetItem, QInputDialog, QMenu)
+from PySide6.QtCore import Qt, QRectF
+from PySide6.QtGui import QColor, QPen
 import sys
 import io
 from contextlib import redirect_stdout
 import traceback
 
-class Block(QGraphicsItem):
-    COLOR_MAP = {
-        "Print": QColor(163, 79, 20),
-        "Variable": QColor(83, 100, 130),
-        "Loop": QColor(145, 10, 21),
-        "Condition": QColor(10, 57, 145),
+COLORS = {
+    "bg_primary": "#1a1b26",
+    "bg_secondary": "#24283b",
+    "bg_tertiary": "#2f334d",
+    "accent": "#7aa2f7",
+    "text_primary": "#c0caf5",
+    "text_secondary": "#a9b1d6",
+    "error": "#f7768e",
+    "success": "#9ece6a",
+    "block_colors": {
+        "Print": QColor("#bb9af7"),
+        "Variable": QColor("#7dcfff"),
+        "Loop": QColor("#ff9e64"),
+        "Condition": QColor("#9ece6a"),
     }
+}
 
+class Block(QGraphicsItem):
+    COLOR_MAP = COLORS["block_colors"]
     VERTICAL_SPACING = 60
     VERTICAL_TOLERANCE = 20
     INDENT_THRESHOLD = 20
@@ -24,13 +35,32 @@ class Block(QGraphicsItem):
         self.block_type = block_type
         self.text = self.get_initial_text()
         self.setFlags(QGraphicsItem.ItemIsMovable | QGraphicsItem.ItemIsSelectable)
-        self.rect = QRectF(0, 0, 150, 50)
+        self.rect = QRectF(0, 0, 160, 45)
         self.nested_blocks = []
         self.parent_block = None
 
+    def mousePressEvent(self, event):
+        if event.button() == Qt.RightButton:
+            menu = QMenu()
+            delete_action = menu.addAction("Delete Block")
+
+            scene_pos = event.scenePos()
+            view = self.scene().views()[0]
+            screen_pos = view.mapToGlobal(view.mapFromScene(scene_pos))
+
+            action = menu.exec(screen_pos)
+            if action == delete_action:
+                for nested in self.nested_blocks:
+                    nested.scene().removeItem(nested)
+                if self.parent_block:
+                    self.parent_block.nested_blocks.remove(self)
+                self.scene().removeItem(self)
+        else:
+            super().mousePressEvent(event)
+
     def get_initial_text(self):
         if self.block_type == "Print":
-            return "Print: 'Hello'"
+            return "Print: 'Hello World'"
         elif self.block_type == "Variable":
             return "Variable: x = 10"
         elif self.block_type == "Loop":
@@ -45,12 +75,19 @@ class Block(QGraphicsItem):
     def paint(self, painter, option, widget=None):
         color = self.COLOR_MAP.get(self.block_type, QColor(211, 211, 211))
         painter.setBrush(color)
-        painter.drawRoundedRect(self.rect, 5, 5)
+        painter.setPen(QPen(Qt.black, 0))
+        painter.drawRoundedRect(self.rect, 10, 10)
+
+        painter.setPen(QPen(QColor("#1a1b26")))
+        font = painter.font()
+        font.setPointSize(10)
+        font.setFamily("Segoe UI")
+        painter.setFont(font)
         painter.drawText(self.rect, Qt.AlignCenter, self.text)
 
     def edit_block(self):
         if self.block_type == "Print":
-            new_text, ok = QInputDialog.getText(None, "Edit Print Block", "Enter text to print:", text="Hello")
+            new_text, ok = QInputDialog.getText(None, "Edit Print Block", "Enter text to print:", text="Hello World")
             if ok:
                 self.text = f"Print: '{new_text}'"
         elif self.block_type == "Variable":
@@ -71,13 +108,16 @@ class Terminal(QTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setReadOnly(True)
-        self.setStyleSheet("""
-            QTextEdit {
-                background-color: #1E1E1E;
-                color: #FFFFFF;
-                font-family: Consolas, Monaco, monospace;
-                padding: 5px;
-            }
+        self.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {COLORS['bg_tertiary']};
+                color: {COLORS['text_primary']};
+                border: none;
+                border-radius: 8px;
+                padding: 10px;
+                font-family: 'Consolas', 'Monaco', monospace;
+                font-size: 11pt;
+            }}
         """)
         self.clear_terminal()
 
@@ -86,7 +126,7 @@ class Terminal(QTextEdit):
         self.append("=== Terminal Output ===\n")
 
     def append_output(self, text, error=False):
-        color = "#FF6B68" if error else "#FFFFFF"
+        color = COLORS["error"] if error else COLORS["text_primary"]
         self.append(f'<span style="color: {color};">{text}</span>')
 
 class VisualLang(QMainWindow):
@@ -94,12 +134,62 @@ class VisualLang(QMainWindow):
         super().__init__()
         self.setWindowTitle("VisualLang IDE")
         self.setGeometry(100, 100, 1200, 800)
+        self.setStyleSheet(f"""
+            QMainWindow {{
+                background-color: {COLORS['bg_primary']};
+            }}
+            QWidget {{
+                background-color: {COLORS['bg_primary']};
+                color: {COLORS['text_primary']};
+                font-family: 'Segoe UI', sans-serif;
+            }}
+            QPushButton {{
+                background-color: {COLORS['accent']};
+                color: {COLORS['bg_primary']};
+                border: none;
+                border-radius: 5px;
+                padding: 8px 15px;
+                font-weight: bold;
+            }}
+            QPushButton:hover {{
+                background-color: {COLORS['text_primary']};
+            }}
+            QLabel {{
+                color: {COLORS['text_secondary']};
+                font-size: 11pt;
+                font-weight: bold;
+                margin-bottom: 5px;
+            }}
+            QListWidget {{
+                background-color: {COLORS['bg_secondary']};
+                border: none;
+                border-radius: 8px;
+                padding: 5px;
+            }}
+            QListWidget::item {{
+                padding: 8px;
+                margin: 2px;
+                border-radius: 4px;
+            }}
+            QListWidget::item:selected {{
+                background-color: {COLORS['accent']};
+                color: {COLORS['bg_primary']};
+            }}
+            QGraphicsView {{
+                background-color: {COLORS['bg_secondary']};
+                border: none;
+                border-radius: 8px;
+                margin: 5px;
+            }}
+        """)
         self.initUI()
 
     def initUI(self):
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         main_layout = QHBoxLayout()
+        main_layout.setSpacing(15)
+        main_layout.setContentsMargins(15, 15, 15, 15)
         main_widget.setLayout(main_layout)
 
         sidebar_layout = QVBoxLayout()
@@ -108,50 +198,68 @@ class VisualLang(QMainWindow):
             item = QListWidgetItem(block_name)
             block_list.addItem(item)
         block_list.itemDoubleClicked.connect(self.create_block)
-        sidebar_layout.addWidget(QLabel("Blocks"))
+        
+        sidebar_label = QLabel("Blocks")
+        sidebar_label.setAlignment(Qt.AlignCenter)
+        sidebar_layout.addWidget(sidebar_label)
         sidebar_layout.addWidget(block_list)
-        main_layout.addLayout(sidebar_layout)
+        sidebar_widget = QWidget()
+        sidebar_widget.setLayout(sidebar_layout)
+        sidebar_widget.setFixedWidth(200)
+        main_layout.addWidget(sidebar_widget)
 
         right_layout = QVBoxLayout()
+        right_layout.setSpacing(10)
 
         self.graphics_view = QGraphicsView()
         self.scene = QGraphicsScene(0, 0, 2000, 1500)
+        self.scene.setBackgroundBrush(QColor(COLORS['bg_secondary']))
         self.graphics_view.setScene(self.scene)
         right_layout.addWidget(self.graphics_view)
 
         bottom_panel = QHBoxLayout()
+        bottom_panel.setSpacing(10)
 
         code_layout = QVBoxLayout()
         button_layout = QHBoxLayout()
+        button_layout.setSpacing(8)
         
-        generate_code_button = QPushButton("Generate Python Code")
-        generate_code_button.clicked.connect(self.generate_code)
-        button_layout.addWidget(generate_code_button)
+        buttons = [
+            ("Generate Python Code", self.generate_code),
+            ("Run Code", self.gen_run_code),
+            ("Clear Terminal", self.clear_terminal)
+        ]
         
-        run_code_button = QPushButton("Run Code")
-        run_code_button.clicked.connect(self.run_code)
-        button_layout.addWidget(run_code_button)
-        
-        clear_terminal_button = QPushButton("Clear Terminal")
-        clear_terminal_button.clicked.connect(self.clear_terminal)
-        button_layout.addWidget(clear_terminal_button)
+        for text, handler in buttons:
+            btn = QPushButton(text)
+            btn.clicked.connect(handler)
+            button_layout.addWidget(btn)
         
         code_layout.addLayout(button_layout)
 
         self.output_text = QTextEdit()
         self.output_text.setReadOnly(True)
-        self.output_text.setStyleSheet("""
-            QTextEdit {
-                font-family: Consolas, Monaco, monospace;
-                background-color: #2D2D2D;
-                color: #D4D4D4;
-            }
+        self.output_text.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {COLORS['bg_tertiary']};
+                color: {COLORS['text_primary']};
+                border: none;
+                border-radius: 8px;
+                padding: 10px;
+                font-family: 'Consolas', 'Monaco', monospace;
+                font-size: 11pt;
+            }}
         """)
-        code_layout.addWidget(QLabel("Generated Code"))
+        
+        code_label = QLabel("Generated Code")
+        code_label.setAlignment(Qt.AlignLeft)
+        code_layout.addWidget(code_label)
         code_layout.addWidget(self.output_text)
 
         terminal_layout = QVBoxLayout()
-        terminal_layout.addWidget(QLabel("Terminal Output"))
+        terminal_label = QLabel("Terminal Output")
+        terminal_label.setAlignment(Qt.AlignLeft)
+        terminal_layout.addWidget(terminal_label)
         self.terminal = Terminal()
         terminal_layout.addWidget(self.terminal)
 
@@ -163,6 +271,10 @@ class VisualLang(QMainWindow):
 
     def clear_terminal(self):
         self.terminal.clear_terminal()
+
+    def gen_run_code(self):
+        self.generate_code()
+        self.run_code()
 
     def run_code(self):
         code = self.output_text.toPlainText()
