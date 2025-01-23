@@ -21,6 +21,13 @@ COLORS = {
         "Variable": QColor("#7dcfff"),
         "Loop": QColor("#ff9e64"),
         "Condition": QColor("#9ece6a"),
+        "WhileLoop": QColor("#f7768e"),
+        "Addition": QColor("#73daca"),
+        "Subtraction": QColor("#ff7a93"),
+        "Multiplication": QColor("#b4f9f0"),
+        "Division": QColor("#ffa656"),
+        "Rounding": QColor("#c0caf5"),
+        "Modulo": QColor("#ff9e64")
     }
 }
 
@@ -59,15 +66,20 @@ class Block(QGraphicsItem):
             super().mousePressEvent(event)
 
     def get_initial_text(self):
-        if self.block_type == "Print":
-            return "Print: 'Hello World'"
-        elif self.block_type == "Variable":
-            return "Variable: x = 10"
-        elif self.block_type == "Loop":
-            return "Loop: range(5)"
-        elif self.block_type == "Condition":
-            return "Condition: x > 5"
-        return self.block_type
+        initial_texts = {
+            "Print": "Print: 'Hello World'",
+            "Variable": "Variable: x = 10",
+            "Loop": "Loop: range(5)",
+            "Condition": "Condition: x > 5",
+            "WhileLoop": "WhileLoop: x < 10",
+            "Addition": "Addition: x, y",
+            "Subtraction": "Subtraction: x, y",
+            "Multiplication": "Multiplication: x, y",
+            "Division": "Division: x, y",
+            "Rounding": "Rounding: x, 2",
+            "Modulo": "Modulo: x, y"
+        }
+        return initial_texts.get(self.block_type, self.block_type)
 
     def boundingRect(self) -> QRectF:
         return self.rect.adjusted(-5, -5, 5, 5)
@@ -86,22 +98,50 @@ class Block(QGraphicsItem):
         painter.drawText(self.rect, Qt.AlignCenter, self.text)
 
     def edit_block(self):
-        if self.block_type == "Print":
-            new_text, ok = QInputDialog.getText(None, "Edit Print Block", "Enter text to print:", text="Hello World")
+        edit_prompts = {
+            "Print": ("Edit Print Block", "Enter text to print:", "Hello World", False),
+            "Variable": ("Edit Variable Block", "Enter variable and value (e.g., x = 10):", "x = 10", False),
+            "Loop": ("Edit Loop Block", "Enter range (e.g., 5):", "5", False),
+            "Condition": ("Edit Condition Block", "Enter condition (e.g., x > 5):", "x > 5", False),
+            "WhileLoop": ("Edit While Loop Block", "Enter while condition (e.g., x < 10):", "x < 10", False),
+            "Addition": ("Edit Addition Block", "Enter first value/variable:", "x", True),
+            "Subtraction": ("Edit Subtraction Block", "Enter first value/variable:", "x", True),
+            "Multiplication": ("Edit Multiplication Block", "Enter first value/variable:", "x", True),
+            "Division": ("Edit Division Block", "Enter first value/variable:", "x", True),
+            "Rounding": ("Edit Rounding Block", "Enter variable to round:", "x", True),
+            "Modulo": ("Edit Modulo Block", "Enter first value/variable:", "x", True)
+        }
+
+        title, prompt1, default1, needs_var = edit_prompts.get(self.block_type, ("Edit Block", "Enter first value:", "", False))
+        
+        if needs_var:
+            var_title = f"Edit {self.block_type} Result Variable"
+            var_prompt = "Enter the variable to save result:"
+            var_default = "result"
+            var_name, var_ok = QInputDialog.getText(None, var_title, var_prompt, text=var_default)
+            
+            if not var_ok:
+                return
+
+            first_title = title
+            first_prompt = prompt1
+            first_value, first_ok = QInputDialog.getText(None, first_title, first_prompt, text=default1)
+            
+            if not first_ok:
+                return
+
+            second_prompt = "Enter second value/variable:" if self.block_type != "Rounding" else "Enter decimal places:"
+            second_default = "y" if self.block_type != "Rounding" else "2"
+            second_value, second_ok = QInputDialog.getText(None, title, second_prompt, text=second_default)
+            
+            if second_ok:
+                self.text = f"{self.block_type}: {var_name}, {first_value}, {second_value}"
+        else:
+            new_text, ok = QInputDialog.getText(None, title, prompt1, text=default1)
+            
             if ok:
-                self.text = f"Print: '{new_text}'"
-        elif self.block_type == "Variable":
-            new_var, ok = QInputDialog.getText(None, "Edit Variable Block", "Enter variable and value (e.g., x = 10):", text="x = 10")
-            if ok:
-                self.text = f"Variable: {new_var}"
-        elif self.block_type == "Loop":
-            new_range, ok = QInputDialog.getText(None, "Edit Loop Block", "Enter range (e.g., 5):", text="5")
-            if ok:
-                self.text = f"Loop: range({new_range})"
-        elif self.block_type == "Condition":
-            new_condition, ok = QInputDialog.getText(None, "Edit Condition Block", "Enter condition (e.g., x > 5):", text="x > 5")
-            if ok:
-                self.text = f"Condition: {new_condition}"
+                self.text = f"{self.block_type}: {new_text}"
+        
         self.update()
 
 class Terminal(QTextEdit):
@@ -194,7 +234,12 @@ class VisualLang(QMainWindow):
 
         sidebar_layout = QVBoxLayout()
         block_list = QListWidget()
-        for block_name in ["Print", "Variable", "Loop", "Condition"]:
+        block_types = [
+            "Print", "Variable", "Loop", "Condition", 
+            "WhileLoop", "Addition", "Subtraction", 
+            "Multiplication", "Division", "Rounding", "Modulo"
+        ]
+        for block_name in block_types:
             item = QListWidgetItem(block_name)
             block_list.addItem(item)
         block_list.itemDoubleClicked.connect(self.create_block)
@@ -344,7 +389,6 @@ class VisualLang(QMainWindow):
                         prev_block.block_type in ["Loop", "Condition"]):
                         block.parent_block = prev_block
                         prev_block.nested_blocks.append(block)
-
         return blocks
 
     def generate_code(self):
@@ -363,17 +407,42 @@ class VisualLang(QMainWindow):
         indent = "    " * indent_level
         code = []
 
-        if block.block_type == "Print":
-            content = block.text.split(": ")[-1]
-            code.append(f"{indent}print({content})")
-        elif block.block_type == "Variable":
-            code.append(f"{indent}{block.text.split(': ')[-1]}")
-        elif block.block_type in ["Loop", "Condition"]:
-            header = (f"{indent}for i in {block.text.split(': ')[-1]}:"
-                     if block.block_type == "Loop"
-                     else f"{indent}if {block.text.split(': ')[-1]}:")
-            code.append(header)
+        def safe_split(text):
+            parts = text.split(': ')
+            return parts[-1].split(',') if len(parts) > 1 else []
 
+        block_type_mapping = {
+            "Print": f"{indent}print({block.text.split(': ')[-1]})",
+            "Variable": f"{indent}{block.text.split(': ')[-1]}",
+            "Loop": f"{indent}for i in {block.text.split(': ')[-1]}:",
+            "Condition": f"{indent}if {block.text.split(': ')[-1]}:",
+            "WhileLoop": f"{indent}while {block.text.split(': ')[-1]}:",
+        }
+
+        two_input_ops = {
+            "Addition": " + ",
+            "Subtraction": " - ",
+            "Multiplication": " * ",
+            "Division": " / ",
+            "Modulo": " % "
+        }
+
+        if block.block_type in two_input_ops:
+            parts = safe_split(block.text)
+            if len(parts) >= 3:
+                var_name, first_val, second_val = [p.strip() for p in parts]
+                op_line = f"{indent}{var_name} = {first_val}{two_input_ops[block.block_type]}{second_val}"
+                block_type_mapping[block.block_type] = op_line
+
+        if block.block_type == "Rounding":
+            parts = safe_split(block.text)
+            if len(parts) >= 3:
+                var_name, round_var, decimal_places = [p.strip() for p in parts]
+                block_type_mapping["Rounding"] = f"{indent}{var_name} = round({round_var}, {decimal_places})"
+
+        code.append(block_type_mapping.get(block.block_type, ""))
+
+        if block.block_type in ["Loop", "Condition", "WhileLoop"]:
             nested_blocks = sorted(block.nested_blocks, key=lambda b: b.pos().y())
             if nested_blocks:
                 for nested in nested_blocks:
