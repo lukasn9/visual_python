@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, QPushButton, QLabel, QHBoxLayout, QGraphicsView,
-                               QGraphicsScene, QGraphicsItem, QTextEdit, QListWidget, QListWidgetItem, QInputDialog, QMenu)
+                               QGraphicsScene, QGraphicsItem, QTextEdit, QListWidget, QListWidgetItem, QInputDialog, QMenu, QTabWidget)
 from PySide6.QtCore import Qt, QRectF
 from PySide6.QtGui import QColor, QPen
 import sys
@@ -27,7 +27,23 @@ COLORS = {
         "Multiplication": QColor("#b4f9f0"),
         "Division": QColor("#ffa656"),
         "Rounding": QColor("#c0caf5"),
-        "Modulo": QColor("#ff9e64")
+        "Modulo": QColor("#ff9e64"),
+        "Exponentiation": QColor("#73daca"),
+        "SquareRoot": QColor("#7dcfff"),
+        "AbsoluteValue": QColor("#9ece6a"),
+        "MinMax": QColor("#ff9e64"),
+        "Function": QColor("#bb9af7"),
+        "Return": QColor("#f7768e"),
+        "Break": QColor("#ff7a93"),
+        "Continue": QColor("#ffa656"),
+        "ListCreate": QColor("#b4f9f0"),
+        "StringConvert": QColor("#73daca"),
+        "IntConvert": QColor("#7dcfff"),
+        "FloatConvert": QColor("#9ece6a"),
+        "TypeCheck": QColor("#ff7a93"),
+        "StringConcat": QColor("#bb9af7"),
+        "StringSplit": QColor("#b4f9f0"),
+        "StringFormat": QColor("#7aa2f7")
     }
 }
 
@@ -77,7 +93,27 @@ class Block(QGraphicsItem):
             "Multiplication": "Multiplication: x, y",
             "Division": "Division: x, y",
             "Rounding": "Rounding: x, 2",
-            "Modulo": "Modulo: x, y"
+            "Modulo": "Modulo: x, y",
+            "Exponentiation": "Exponentiation: result, x, y",
+            "SquareRoot": "SquareRoot: result, x",
+            "AbsoluteValue": "AbsoluteValue: result, x",
+            "MinMax": "MinMax: result, x, y",
+            "Function": "Function: my_function(param1, param2)",
+            "Return": "Return: value",
+            "Break": "Break: in_loop",
+            "Continue": "Continue: in_loop",
+            "ListCreate": "ListCreate: my_list, [1, 2, 3]",
+            "DictCreate": "DictCreate: my_dict, {'key': 'value'}",
+            "ListAppend": "ListAppend: my_list, new_item",
+            "Comprehension": "Comprehension: result, [x for x in range(10)]",
+            "StringConvert": "StringConvert: result, x",
+            "IntConvert": "IntConvert: result, x",
+            "FloatConvert": "FloatConvert: result, x",
+            "TypeCheck": "TypeCheck: result, x",
+            "StringConcat": "StringConcat: result, str1, str2",
+            "StringSplit": "StringSplit: result, string, delimiter",
+            "StringFormat": "StringFormat: result, template, values",
+            "StringLength": "StringLength: result, string"
         }
         return initial_texts.get(self.block_type, self.block_type)
 
@@ -109,7 +145,23 @@ class Block(QGraphicsItem):
             "Multiplication": ("Edit Multiplication Block", "Enter first value/variable:", "x", True),
             "Division": ("Edit Division Block", "Enter first value/variable:", "x", True),
             "Rounding": ("Edit Rounding Block", "Enter variable to round:", "x", True),
-            "Modulo": ("Edit Modulo Block", "Enter first value/variable:", "x", True)
+            "Modulo": ("Edit Modulo Block", "Enter first value/variable:", "x", True),
+            "Exponentiation": ("Edit Exponentiation Block", "Enter first value/variable:", "x", True),
+            "Square Root": ("Edit Square Root Block", "Enter variable to square root:", "x", True),
+            "Absolute Value": ("Edit Absolute Value Block", "Enter variable:", "x", True),
+            "Min/Max": ("Edit Min/Max Block", "Enter first value/variable:", "x", True),
+            "Function": ("Edit Function Block", "Enter function definition:", "def my_function(param1, param2):", False),
+            "Return": ("Edit Return Block", "Enter return value:", "result", False),
+            "Break": ("Edit Break Block", "Enter context:", "", False),
+            "Continue": ("Edit Continue Block", "Enter context:", "", False),
+            "ListCreate": ("Edit List Creation Block", "Enter list values:", "[1, 2, 3]", True),
+            "StringConvert": ("Edit String Conversion Block", "Enter variable to convert:", "x", True),
+            "IntConvert": ("Edit Integer Conversion Block", "Enter variable to convert:", "x", True),
+            "FloatConvert": ("Edit Float Conversion Block", "Enter variable to convert:", "x", True),
+            "TypeCheck": ("Edit Type Check Block", "Enter variable to check:", "x", True),
+            "StringConcat": ("Edit String Concatenation Block", "Enter first string:", "str1", True),
+            "StringSplit": ("Edit String Split Block", "Enter string to split:", "string", True),
+            "StringFormat": ("Edit String Format Block", "Enter format template:", "'{} {}'", True)
         }
 
         title, prompt1, default1, needs_var = edit_prompts.get(self.block_type, ("Edit Block", "Enter first value:", "", False))
@@ -233,16 +285,46 @@ class VisualLang(QMainWindow):
         main_widget.setLayout(main_layout)
 
         sidebar_layout = QVBoxLayout()
-        block_list = QListWidget()
-        block_types = [
-            "Print", "Variable", "Loop", "Condition", 
-            "WhileLoop", "Addition", "Subtraction", 
-            "Multiplication", "Division", "Rounding", "Modulo"
-        ]
-        for block_name in block_types:
-            item = QListWidgetItem(block_name)
-            block_list.addItem(item)
-        block_list.itemDoubleClicked.connect(self.create_block)
+        block_tabs = QTabWidget()
+        block_categories = {
+            "Basic": [
+                "Print", "Variable", "Loop",
+                "Condition", "While Loop"
+            ],
+            "Arithmetic": [
+                "Addition", "Subtraction",
+                "Multiplication", "Division",
+                "Rounding", "Modulo"
+            ],
+            "Computational": [
+                "Exponentiation", "Square Root",
+                "Absolute Value", "Min/Max"
+            ],
+            "Control Flow": [
+                "Function", "Return",
+                "Break", "Continue"
+            ],
+            "Data Structures": [
+                "List Create"
+            ],
+            "Type Conversion": [
+                "String Convert", "Int Convert",
+                "Float Convert", "Type Check"
+            ],
+            "String Manipulation": [
+                "String Concat", "String Split",
+                "String Format"
+            ]
+        }
+        for category, blocks in block_categories.items():
+            block_list = QListWidget()
+            for block_name in blocks:
+                item = QListWidgetItem(block_name)
+                block_list.addItem(item)
+            block_list.itemDoubleClicked.connect(self.create_block)
+            block_tabs.addTab(block_list, category)
+    
+        sidebar_layout.addWidget(block_tabs)
         
         sidebar_label = QLabel("Blocks")
         sidebar_label.setAlignment(Qt.AlignCenter)
@@ -411,12 +493,37 @@ class VisualLang(QMainWindow):
             parts = text.split(': ')
             return parts[-1].split(',') if len(parts) > 1 else []
 
+        parts = safe_split(block.text)
+        var_name = parts[0].strip() if len(parts) > 0 else ""
+        first_val = parts[1].strip() if len(parts) > 1 else ""
+        second_val = parts[2].strip() if len(parts) > 2 else ""
+
         block_type_mapping = {
             "Print": f"{indent}print({block.text.split(': ')[-1]})",
             "Variable": f"{indent}{block.text.split(': ')[-1]}",
             "Loop": f"{indent}for i in {block.text.split(': ')[-1]}:",
             "Condition": f"{indent}if {block.text.split(': ')[-1]}:",
             "WhileLoop": f"{indent}while {block.text.split(': ')[-1]}:",
+            "Exponentiation": f"{indent}{var_name} = {first_val} ** {second_val}",
+            "SquareRoot": f"{indent}{var_name} = {first_val} ** 0.5",
+            "AbsoluteValue": f"{indent}{var_name} = abs({first_val})",
+            "MinMax": f"{indent}{var_name} = max({first_val}, {second_val})",
+            "Function": f"{indent}{block.text.split(': ')[-1]}:",
+            "Return": f"{indent}return {block.text.split(': ')[-1]}",
+            "Break": f"{indent}break",
+            "Continue": f"{indent}continue",
+            "ListCreate": f"{indent}{var_name} = {first_val}",
+            "DictCreate": f"{indent}{var_name} = {first_val}",
+            "ListAppend": f"{indent}{first_val}.append({second_val})",
+            "Comprehension": f"{indent}{var_name} = {first_val}",
+            "StringConvert": f"{indent}{var_name} = str({first_val})",
+            "IntConvert": f"{indent}{var_name} = int({first_val})",
+            "FloatConvert": f"{indent}{var_name} = float({first_val})",
+            "TypeCheck": f"{indent}{var_name} = type({first_val})",
+            "StringConcat": f"{indent}{var_name} = {first_val} + {second_val}",
+            "StringSplit": f"{indent}{var_name} = {first_val}.split({second_val})",
+            "StringFormat": f"{indent}{var_name} = {first_val}.format({second_val})",
+            "StringLength": f"{indent}{var_name} = len({first_val})"
         }
 
         two_input_ops = {
@@ -428,17 +535,11 @@ class VisualLang(QMainWindow):
         }
 
         if block.block_type in two_input_ops:
-            parts = safe_split(block.text)
-            if len(parts) >= 3:
-                var_name, first_val, second_val = [p.strip() for p in parts]
-                op_line = f"{indent}{var_name} = {first_val}{two_input_ops[block.block_type]}{second_val}"
-                block_type_mapping[block.block_type] = op_line
+            op_line = f"{indent}{var_name} = {first_val}{two_input_ops[block.block_type]}{second_val}"
+            block_type_mapping[block.block_type] = op_line
 
         if block.block_type == "Rounding":
-            parts = safe_split(block.text)
-            if len(parts) >= 3:
-                var_name, round_var, decimal_places = [p.strip() for p in parts]
-                block_type_mapping["Rounding"] = f"{indent}{var_name} = round({round_var}, {decimal_places})"
+            block_type_mapping["Rounding"] = f"{indent}{var_name} = round({first_val}, {second_val})"
 
         code.append(block_type_mapping.get(block.block_type, ""))
 
